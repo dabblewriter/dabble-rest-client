@@ -1,9 +1,8 @@
 import { createId } from 'crypto-id';
 
-export type Hook = (url: string, init: RequestInit) => any;
-export interface Headers {
-  [name: string]: string;
-}
+export type RestAPI = ReturnType<typeof createRestAPI>;
+export type RequestAPI = ReturnType<RestAPI['get']>;
+export type Hook = (request: RequestAPI, path: string) => any;
 
 export class RestError extends Error {
   public code: number;
@@ -40,6 +39,12 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
     let body: any;
 
     const requestAPI = {
+      getMethod: () => method,
+      getPath: () => path,
+      getHeaders: () => headers,
+      getSearchParams: () => searchParams,
+      getBody: () => body,
+
       header(key: string | HeadersInit, value?: string) {
         if (typeof key === 'string') {
           headers.set(key, value || '');
@@ -91,10 +96,10 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
 
       async send<R = T>(payload?: any): Promise<R> {
         if (payload) requestAPI.body(payload);
-        const init: RequestInit = { method, headers, body, credentials: 'include' };
         for (const hook of hooks) {
-          await hook(url, init);
+          await hook(requestAPI, path);
         }
+        const init: RequestInit = { method, headers, body, credentials: 'include' };
 
         let request = new Request(url, init);
 
