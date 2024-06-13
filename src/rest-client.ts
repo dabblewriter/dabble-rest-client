@@ -33,13 +33,13 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
   globalHeaders.set('Accept', 'application/json');
   let hooks: Hook[] = [];
 
-  function request<T = any>(method: string, path: string) {
+  function newRequest<T = any>(method: string, path: string) {
     const url = getUrl(baseUrl, path);
     const headers = new Headers(globalHeaders);
     const searchParams = new URLSearchParams();
     let body: any;
 
-    const requestMethods = {
+    const requestAPI = {
       header(key: string | HeadersInit, value?: string) {
         if (typeof key === 'string') {
           headers.set(key, value || '');
@@ -48,7 +48,7 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
             headers.set(name, value);
           }
         }
-        return requestMethods;
+        return requestAPI;
       },
 
       query(key: string | Record<string, string>, value?: string) {
@@ -59,7 +59,7 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
             searchParams.set(name, value);
           }
         }
-        return requestMethods;
+        return requestAPI;
       },
 
       body(payload: any) {
@@ -86,11 +86,11 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
           }
         }
         body = payload;
-        return requestMethods;
+        return requestAPI;
       },
 
       async send<R = T>(payload?: any): Promise<R> {
-        if (payload) requestMethods.body(payload);
+        if (payload) requestAPI.body(payload);
         const init: RequestInit = { method, headers, body, credentials: 'include' };
         for (const hook of hooks) {
           await hook(url, init);
@@ -117,7 +117,7 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
       },
     };
 
-    return request;
+    return requestAPI;
   }
 
   return {
@@ -126,11 +126,11 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
       return () => (hooks = hooks.filter(h => h === hook));
     },
 
-    get: (path: string) => request('GET', path),
-    post: (path: string) => request('POST', path),
-    put: (path: string) => request('PUT', path),
-    patch: (path: string) => request('PATCH', path),
-    delete: (path: string) => request('DELETE', path),
+    get: (path: string) => newRequest('GET', path),
+    post: (path: string) => newRequest('POST', path),
+    put: (path: string) => newRequest('PUT', path),
+    patch: (path: string) => newRequest('PATCH', path),
+    delete: (path: string) => newRequest('DELETE', path),
   };
 }
 
