@@ -89,8 +89,8 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
         return requestMethods;
       },
 
-      async send<R = T>(body?: any): Promise<R> {
-        if (body) requestMethods.body(body);
+      async send<R = T>(payload?: any): Promise<R> {
+        if (payload) requestMethods.body(payload);
         const init: RequestInit = { method, headers, body, credentials: 'include' };
         for (const hook of hooks) {
           await hook(url, init);
