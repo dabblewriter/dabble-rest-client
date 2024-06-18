@@ -109,7 +109,11 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
         const init: RequestInit = { method, headers, body };
         if (credentialsString) init.credentials = credentialsString;
 
-        let request = new Request(url, init);
+        let query = '';
+        if(searchParams.toString()) {
+          query = `?${searchParams.toString()}`;
+        }
+        let request = new Request(`${url}${query}`, init);
 
         const response = await fetch(request);
         let text = await response.text();
