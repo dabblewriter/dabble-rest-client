@@ -1,6 +1,6 @@
 {
   "name": "@dabble/rest-client",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "An easier-to-use API for using REST APIs via fetch",
   "main": "dist/index.js",
   "type": "module",
