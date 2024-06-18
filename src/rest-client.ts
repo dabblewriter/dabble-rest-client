@@ -36,6 +36,7 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
     const url = getUrl(baseUrl, path);
     const headers = new Headers(globalHeaders);
     const searchParams = new URLSearchParams();
+    let credentialsString: RequestCredentials | undefined;
     let body: any;
 
     const requestAPI = {
@@ -44,6 +45,7 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
       getHeaders: () => headers,
       getSearchParams: () => searchParams,
       getBody: () => body,
+      getCredentials: () => credentialsString,
 
       header(key: string | HeadersInit, value?: string) {
         if (typeof key === 'string') {
@@ -54,6 +56,11 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
           }
         }
         return requestAPI;
+      },
+
+      credentials(value: RequestCredentials) {
+        credentialsString = value;
+        return requestAPI
       },
 
       query(key: string | Record<string, string>, value?: string) {
@@ -99,7 +106,8 @@ export function createRestAPI(url: string, headers?: HeadersInit) {
         for (const hook of hooks) {
           await hook(requestAPI, path);
         }
-        const init: RequestInit = { method, headers, body, credentials: 'include' };
+        const init: RequestInit = { method, headers, body };
+        if (credentialsString) init.credentials = credentialsString;
 
         let request = new Request(url, init);
 
