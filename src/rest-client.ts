@@ -1,8 +1,6 @@
 import { createId } from 'crypto-id';
 
-export type RestAPI = ReturnType<typeof createRestAPI>;
-export type RequestAPI = ReturnType<RestAPI['get']>;
-export type Hook = (request: RequestAPI, path: string) => any;
+export type Hook<T extends RequestAPI = RequestAPI> = (request: T) => any;
 
 export class RestError extends Error {
   public code: number;
@@ -11,6 +9,10 @@ export class RestError extends Error {
     super(message);
     this.code = code;
   }
+}
+
+interface RequestAPIContructor<T extends RequestAPI = RequestAPI> {
+  new (method: string, url: URL, headers: HeadersInit | undefined, hooks: Hook<any>[]): T;
 }
 
 /**
@@ -26,135 +28,21 @@ export class RestError extends Error {
  * await api.delete('/users').query({ id: 123 }).send();
  * ```
  */
-export function createRestAPI(url: string, headers?: HeadersInit) {
-  const baseUrl = url.replace(/\/$/, '');
-  const globalHeaders = new Headers(headers);
-  globalHeaders.set('Accept', 'application/json');
-  let hooks: Hook[] = [];
-
-  function newRequest<T = any>(method: string, path: string) {
-    const url = getUrl(baseUrl, path);
-    const headers = new Headers(globalHeaders);
-    const searchParams = new URLSearchParams();
-    let credentialsString: RequestCredentials | undefined;
-    let body: any;
-
-    const requestAPI = {
-      getMethod: () => method,
-      getPath: () => path,
-      getHeaders: () => headers,
-      getSearchParams: () => searchParams,
-      getBody: () => body,
-      getCredentials: () => credentialsString,
-
-      header(key: string | HeadersInit, value?: string) {
-        if (typeof key === 'string') {
-          headers.set(key, value || '');
-        } else {
-          for (const [name, value] of Object.entries(key)) {
-            headers.set(name, value);
-          }
-        }
-        return requestAPI;
-      },
-
-      credentials(value: RequestCredentials) {
-        credentialsString = value;
-        return requestAPI
-      },
-
-      query(key: string | Record<string, string>, value?: string) {
-        if (typeof key === 'string') {
-          searchParams.set(key, value || '');
-        } else {
-          for (const [name, value] of Object.entries(key)) {
-            searchParams.set(name, value);
-          }
-        }
-        return requestAPI;
-      },
-
-      body(payload: any) {
-        if (Array.isArray(payload) && payload[0] instanceof Blob) {
-          const boundary = createId(18);
-          const parts: any[] = [];
-          payload.forEach((blob: Blob) => {
-            parts.push(`--${boundary}\r\n`);
-            parts.push(`Content-Type: ${blob.type}\r\n`);
-            parts.push('\r\n');
-            parts.push(blob);
-            parts.push('\r\n');
-          });
-          parts.push(`--${boundary}--\r\n`);
-          const contentType = 'multipart/related; boundary=' + boundary;
-          const multipartBody = new Blob(parts, { type: contentType });
-          payload = multipartBody;
-          // Blob.type will lower-case the contentType, so be sure to set the header with correct casing
-          headers.set('Content-Type', contentType);
-        } else if (isJsonable(payload)) {
-          if (!headers.has('Content-Type')) {
-            payload = JSON.stringify(payload);
-            headers.set('Content-Type', 'application/json');
-          }
-        }
-        body = payload;
-        return requestAPI;
-      },
-
-      async send<R = T>(payload?: any): Promise<R> {
-        if (payload) requestAPI.body(payload);
-        for (const hook of hooks) {
-          await hook(requestAPI, path);
-        }
-        const init: RequestInit = { method, headers, body };
-        if (credentialsString) init.credentials = credentialsString;
-
-        let query = '';
-        if(searchParams.toString()) {
-          query = `?${searchParams.toString()}`;
-        }
-        let request = new Request(`${url}${query}`, init);
-
-        const response = await fetch(request);
-        let text = await response.text();
-        let data: any = null;
-        try {
-          data = JSON.parse(text);
-        } catch (e) {}
-
-        if (response.ok) {
-          return data;
-        }
-
-        try {
-          text = data.error || (typeof data === 'string' ? data : 'Unknown error');
-        } catch (e) {}
-
-        throw new RestError(response.status, text);
-      },
-    };
-
-    return requestAPI;
-  }
+export function createRestAPI<T extends RequestAPI = RequestAPI>(baseUrl: string, headers?: HeadersInit, RequestClass: RequestAPIContructor<T> = RequestAPI as any) {
+  let hooks: Hook<T>[] = [];
 
   return {
-    hook(hook: Hook) {
+    hook(hook: Hook<T>) {
       hooks.push(hook);
       return () => (hooks = hooks.filter(h => h === hook));
     },
 
-    get: (path: string) => newRequest('GET', path),
-    post: (path: string) => newRequest('POST', path),
-    put: (path: string) => newRequest('PUT', path),
-    patch: (path: string) => newRequest('PATCH', path),
-    delete: (path: string) => newRequest('DELETE', path),
+    get: (path: string) => new RequestClass('GET', new URL(path, baseUrl), headers, hooks),
+    post: (path: string) => new RequestClass('POST', new URL(path, baseUrl), headers, hooks),
+    put: (path: string) => new RequestClass('PUT', new URL(path, baseUrl), headers, hooks),
+    patch: (path: string) => new RequestClass('PATCH', new URL(path, baseUrl), headers, hooks),
+    delete: (path: string) => new RequestClass('DELETE', new URL(path, baseUrl), headers, hooks),
   };
-}
-
-function getUrl(baseUrl: string, path: string) {
-  if (path.includes('//')) return path;
-  if (path[0] !== '/') path = `/${path}`;
-  return `${baseUrl}${path}`;
 }
 
 function isJsonable(obj: any) {
@@ -169,4 +57,105 @@ function isJsonable(obj: any) {
       typeof obj.getReader === 'function'
     )
   );
+}
+
+export class RequestAPI<T = any> {
+  url: URL;
+  init: RequestInit;
+  hooks: Hook[];
+
+  constructor(method: string, url: URL, headers: HeadersInit | undefined, hooks: Hook<any>[]) {
+    this.url = url;
+    this.init = { method, headers: new Headers(headers) };
+    this.hooks = hooks;
+    this.header('Accept', 'application/json');
+  }
+
+  header(key: string): string | null;
+  header(key: string, value: string): this;
+  header(key: HeadersInit): this;
+  header(key: string | HeadersInit, value?: string) {
+    if (typeof key === 'string') {
+      if (value === undefined) {
+        return (this.init.headers as Headers).get(key);
+      }
+      (this.init.headers as Headers).set(key, value || '');
+    } else {
+      for (const [name, value] of Object.entries(key)) {
+        (this.init.headers as Headers).set(name, value);
+      }
+    }
+    return this;
+  }
+
+  credentials(value: RequestCredentials) {
+    this.init.credentials = value;
+    return this;
+  }
+
+  query(key: string, value: string): this;
+  query(key: Record<string, string>): this;
+  query(key: string | Record<string, string>, value?: string) {
+    if (typeof key === 'string') {
+      this.url.searchParams.set(key, value || '');
+    } else {
+      for (const [name, value] of Object.entries(key)) {
+        this.url.searchParams.set(name, value);
+      }
+    }
+    return this;
+  }
+
+  body(body: BodyInit | null) {
+    if (Array.isArray(body) && body[0] instanceof Blob) {
+      const boundary = createId(18);
+      const parts: any[] = [];
+      body.forEach((blob: Blob) => {
+        parts.push(`--${boundary}\r\n`);
+        parts.push(`Content-Type: ${blob.type}\r\n`);
+        parts.push('\r\n');
+        parts.push(blob);
+        parts.push('\r\n');
+      });
+      parts.push(`--${boundary}--\r\n`);
+      const contentType = 'multipart/related; boundary=' + boundary;
+      const multipartBody = new Blob(parts, { type: contentType });
+      body = multipartBody;
+      // Blob.type will lower-case the contentType, so be sure to set the header with correct casing
+      this.header('Content-Type', contentType);
+    } else if (isJsonable(body)) {
+      if (!this.header('Content-Type')) {
+        body = JSON.stringify(body);
+        this.header('Content-Type', 'application/json');
+      }
+    }
+    this.init.body = body;
+    return this;
+  }
+
+  async send<R = T>(body?: BodyInit | null): Promise<R> {
+    if (body !== undefined) this.body(body);
+    for (const hook of this.hooks) {
+      await hook(this);
+    }
+
+    const request = new Request(this.url, this.init);
+
+    const response = await fetch(request);
+    let text = await response.text();
+    let data: any = null;
+    try {
+      data = JSON.parse(text);
+    } catch (e) {}
+
+    if (response.ok) {
+      return data;
+    }
+
+    try {
+      text = data.error || (typeof data === 'string' ? data : 'Unknown error');
+    } catch (e) {}
+
+    throw new RestError(response.status, text);
+  }
 }
