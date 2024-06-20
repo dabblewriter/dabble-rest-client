@@ -1,6 +1,9 @@
 import { createId } from 'crypto-id';
 
 export type Hook<T extends RequestAPI = RequestAPI> = (request: T) => any;
+export type JSON = string | number | boolean | null | JSONObject | Array<JSON>;
+export type JSONObject = { [x: string]: JSON };
+export type BodyTypes = BodyInit | Blob[] | JSONObject | null;
 
 export class RestError extends Error {
   public code: number;
@@ -28,7 +31,11 @@ interface RequestAPIContructor<T extends RequestAPI = RequestAPI> {
  * await api.delete('/users').query({ id: 123 }).send();
  * ```
  */
-export function createRestAPI<T extends RequestAPI = RequestAPI>(baseUrl: string, headers?: HeadersInit, RequestClass: RequestAPIContructor<T> = RequestAPI as any) {
+export function createRestAPI<T extends RequestAPI = RequestAPI>(
+  baseUrl: string,
+  headers?: HeadersInit,
+  RequestClass: RequestAPIContructor<T> = RequestAPI as any
+) {
   let hooks: Hook<T>[] = [];
 
   return {
@@ -43,20 +50,6 @@ export function createRestAPI<T extends RequestAPI = RequestAPI>(baseUrl: string
     patch: (path: string) => new RequestClass('PATCH', new URL(path, baseUrl), headers, hooks),
     delete: (path: string) => new RequestClass('DELETE', new URL(path, baseUrl), headers, hooks),
   };
-}
-
-function isJsonable(obj: any) {
-  return (
-    obj &&
-    !(
-      typeof obj === 'string' ||
-      obj instanceof Blob ||
-      obj instanceof FormData ||
-      obj instanceof File ||
-      obj instanceof ReadableStream ||
-      typeof obj.getReader === 'function'
-    )
-  );
 }
 
 export class RequestAPI<T = any> {
@@ -106,8 +99,8 @@ export class RequestAPI<T = any> {
     return this;
   }
 
-  body(body: BodyInit | null) {
-    if (Array.isArray(body) && body[0] instanceof Blob) {
+  body(body: BodyTypes) {
+    if (isBlobArray(body)) {
       const boundary = createId(18);
       const parts: any[] = [];
       body.forEach((blob: Blob) => {
@@ -124,8 +117,8 @@ export class RequestAPI<T = any> {
       // Blob.type will lower-case the contentType, so be sure to set the header with correct casing
       this.header('Content-Type', contentType);
     } else if (isJsonable(body)) {
+      body = JSON.stringify(body);
       if (!this.header('Content-Type')) {
-        body = JSON.stringify(body);
         this.header('Content-Type', 'application/json');
       }
     }
@@ -133,7 +126,7 @@ export class RequestAPI<T = any> {
     return this;
   }
 
-  async send<R = T>(body?: BodyInit | null): Promise<R> {
+  async send<R = T>(body?: BodyTypes): Promise<R> {
     if (body !== undefined) this.body(body);
     for (const hook of this.hooks) {
       await hook(this);
@@ -158,4 +151,22 @@ export class RequestAPI<T = any> {
 
     throw new RestError(response.status, text);
   }
+}
+
+function isJsonable(obj: any): obj is JSONObject {
+  return (
+    obj &&
+    !(
+      typeof obj === 'string' ||
+      obj instanceof Blob ||
+      obj instanceof FormData ||
+      obj instanceof File ||
+      obj instanceof ReadableStream ||
+      typeof obj.getReader === 'function'
+    )
+  );
+}
+
+function isBlobArray(obj: any): obj is Blob[] {
+  return Array.isArray(obj) && obj[0] instanceof Blob;
 }
