@@ -1,13 +1,13 @@
 import { createId } from 'crypto-id';
 
-interface JSONable {
-  toJSON(): any;
+export interface JSONable<T = JSON> {
+  toJSON(): T;
 }
 
 export type Hook<T extends RequestAPI = RequestAPI> = (request: T) => any;
-export type JSON = string | number | boolean | null | JSONObject | Array<JSON> | JSONable;
-export type JSONObject = { [x: string]: JSON | JSONable };
-export type BodyTypes = BodyInit | Blob[] | JSONObject | JSONable | null;
+export type JSON = string | number | boolean | null | JSONable | JSONObject | Array<JSON>;
+export type JSONObject = { [x: string]: JSON };
+export type BodyTypes = BodyInit | Blob[] | JSONObject | JSONable<JSONObject> | null;
 
 export class RestError extends Error {
   public code: number;
