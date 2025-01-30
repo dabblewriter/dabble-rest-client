@@ -7,7 +7,7 @@ interface JSONable {
 export type Hook<T extends RequestAPI = RequestAPI> = (request: T) => any;
 export type JSON = string | number | boolean | null | JSONObject | Array<JSON> | JSONable;
 export type JSONObject = { [x: string]: JSON | JSONable };
-export type BodyTypes = BodyInit | Blob[] | JSONObject | null;
+export type BodyTypes = BodyInit | Blob[] | JSONObject | JSONable | null;
 
 export class RestError extends Error {
   public code: number;
