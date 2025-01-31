@@ -1,13 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createId } from 'crypto-id';
 
-export interface JSONable<T = JSON> {
-  toJSON(): T;
+export interface JSONable {
+  toJSON(): any;
 }
 
 export type Hook<T extends RequestAPI = RequestAPI> = (request: T) => any;
 export type JSON = string | number | boolean | null | JSONable | JSONObject | Array<JSON>;
 export type JSONObject = { [x: string]: JSON };
-export type BodyTypes = BodyInit | Blob[] | JSONObject | JSONable<JSONObject> | null;
+export type BodyTypes = BodyInit | Blob[] | JSONObject | JSONable | null;
 
 export class RestError extends Error {
   public code: number;
@@ -157,7 +158,7 @@ export class RequestAPI<T = any> {
   }
 }
 
-function isJsonable(obj: any): obj is JSONObject | JSONable<JSONObject> {
+function isJsonable(obj: any): obj is JSONObject | JSONable {
   return (
     obj &&
     !(

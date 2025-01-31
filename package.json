@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "watch": "tsc --watch",
     "prepublishOnly": "npm run build"
   },
   "author": "",
