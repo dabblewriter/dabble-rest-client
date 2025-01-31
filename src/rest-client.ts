@@ -157,7 +157,7 @@ export class RequestAPI<T = any> {
   }
 }
 
-function isJsonable(obj: any): obj is JSONObject {
+function isJsonable(obj: any): obj is JSONObject | JSONable<JSONObject> {
   return (
     obj &&
     !(
