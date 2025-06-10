@@ -6,7 +6,7 @@ export interface JSONable {
 }
 
 export type Hook<T extends RequestAPI = RequestAPI> = (request: T) => any;
-export type JSON = string | number | boolean | null | JSONable | JSONObject | Array<JSON>;
+export type JSON = string | number | boolean | null | undefined | JSONable | JSONObject | Array<JSON>;
 export type JSONObject = { [x: string]: JSON };
 export type BodyTypes = BodyInit | Blob[] | JSONObject | JSONable | null;
 
