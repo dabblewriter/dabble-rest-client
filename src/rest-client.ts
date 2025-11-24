@@ -1,14 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { createId } from 'crypto-id';
 
-export interface JSONable {
-  toJSON(): any;
-}
-
 export type Hook<T extends RequestAPI = RequestAPI> = (request: T) => any;
-export type JSON = string | number | boolean | null | undefined | JSONable | JSONObject | Array<JSON>;
-export type JSONObject = { [x: string]: JSON };
-export type BodyTypes = BodyInit | Blob[] | JSONObject | JSONable | null;
 
 export class RestError extends Error {
   public code: number;
@@ -104,7 +97,8 @@ export class RequestAPI<T = any> {
     return this;
   }
 
-  body(body: BodyTypes) {
+  body<B extends BodyInit | Blob[] | object | null>(body: B) {
+    let processedBody: BodyInit | null;
     if (isBlobArray(body)) {
       const boundary = createId(18);
       const parts: any[] = [];
@@ -117,21 +111,22 @@ export class RequestAPI<T = any> {
       });
       parts.push(`--${boundary}--\r\n`);
       const contentType = 'multipart/related; boundary=' + boundary;
-      const multipartBody = new Blob(parts, { type: contentType });
-      body = multipartBody;
+      processedBody = new Blob(parts, { type: contentType });
       // Blob.type will lower-case the contentType, so be sure to set the header with correct casing
       this.header('Content-Type', contentType);
-    } else if (isJsonable(body)) {
-      body = JSON.stringify(body);
+    } else if (isJsonObject(body)) {
+      processedBody = JSON.stringify(body);
       if (!this.header('Content-Type')) {
         this.header('Content-Type', 'application/json');
       }
+    } else {
+      processedBody = body as BodyInit | null;
     }
-    this.init.body = body;
+    this.init.body = processedBody;
     return this;
   }
 
-  async send<R = T>(body?: BodyTypes): Promise<R> {
+  async send<R = T, B extends BodyInit | Blob[] | object | null = null>(body?: B): Promise<R> {
     if (body !== undefined) this.body(body);
     for (const hook of this.hooks) {
       await hook(this);
@@ -158,16 +153,16 @@ export class RequestAPI<T = any> {
   }
 }
 
-function isJsonable(obj: any): obj is JSONObject | JSONable {
+function isJsonObject(obj: unknown): obj is object {
   return (
-    obj &&
+    obj != null &&
+    typeof obj === 'object' &&
     !(
-      typeof obj === 'string' ||
       obj instanceof Blob ||
       obj instanceof FormData ||
       obj instanceof File ||
       obj instanceof ReadableStream ||
-      typeof obj.getReader === 'function'
+      (obj as any).getReader === 'function'
     )
   );
 }
